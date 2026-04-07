@@ -11,4 +11,4 @@ This folder contains the primary operational and engineering documentation for `
 - [Operations](OPERATIONS.md): production runbook and incident guidance.
 - [Release Checklist](RELEASE_CHECKLIST.md): release quality gate and publication steps.
 - [Release Commit Sequence](RELEASE_COMMIT_SEQUENCE.md): clean commit strategy for release branches.
-- [Release Notes](releases/v0.1.1.md): current public release notes.
+- [Release Notes](releases/v0.3.0.md): current public release notes.

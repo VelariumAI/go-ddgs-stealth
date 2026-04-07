@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## v0.3.0 - 2026-04-07
+
+- Added unified fetcher architecture with shared anti-bot inheritance:
+  - `Fetcher` / `StealthFetcher` interfaces
+  - `HTTPFetcher`, `StealthyFetcher` (Rod), and `DynamicFetcher`
+- Added adaptive parsing subsystem:
+  - `AdaptiveParser` with selector self-healing
+  - selector fingerprint persistence (`Save` / `Load`)
+- Added crawler runtime:
+  - concurrent `Spider` with per-domain pacing
+  - checkpoint + JSONL streaming
+  - pause/resume support
+  - policy controls (`MaxDepth`, `AllowHosts`, `DenyHosts`)
+- Added session orchestration utilities:
+  - `FetcherSessionPool`
+  - TTL-based `SessionHub`
+- Added stealth HTTP APIs:
+  - `POST /v1/stealth/fetch`
+  - `POST /v1/stealth/crawl`
+- Added stealth endpoint guards:
+  - optional bearer token auth (`GODDGS_API_TOKEN`)
+  - per-IP rate limiting (`GODDGS_STEALTH_RATE_PER_MIN`)
+- Added observability extensions:
+  - Prometheus stealth metrics
+  - OpenTelemetry tracing hooks for stealth HTTP lifecycle
+- Expanded CLI:
+  - `stealth-fetch`, `stealth-crawl`, and `repl`
+  - enhanced doctor diagnostics for stealth configuration paths
+- Added benchmark scaffold under `bench/`.
+- Improved release pipeline to publish `SHA256SUMS.txt` with release artifacts.
+- Strengthened docs and roadmap for `go-ddgs-stealth` identity and release scope.
+
 ## v0.2.1 - 2026-04-07
 
 - Completed post-rename path consistency updates for `go-ddgs-stealth`.
