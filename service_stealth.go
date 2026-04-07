@@ -44,6 +44,14 @@ func registerStealthRoutes(mux *http.ServeMux) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
+		if !requireAPIToken(r) {
+			writeAPIErr(w, http.StatusUnauthorized, APIError{Error: "unauthorized", Kind: string(ErrKindInvalidInput)})
+			return
+		}
+		if !stealthGuard.allow(requesterIP(r)) {
+			writeAPIErr(w, http.StatusTooManyRequests, APIError{Error: "rate limit exceeded", Kind: string(ErrKindRateLimited)})
+			return
+		}
 		var req serviceStealthFetchRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAPIErr(w, http.StatusBadRequest, APIError{Error: "invalid json", Kind: string(ErrKindInvalidInput)})
@@ -106,6 +114,14 @@ func registerStealthRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/stealth/crawl", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if !requireAPIToken(r) {
+			writeAPIErr(w, http.StatusUnauthorized, APIError{Error: "unauthorized", Kind: string(ErrKindInvalidInput)})
+			return
+		}
+		if !stealthGuard.allow(requesterIP(r)) {
+			writeAPIErr(w, http.StatusTooManyRequests, APIError{Error: "rate limit exceeded", Kind: string(ErrKindRateLimited)})
 			return
 		}
 		var req serviceStealthCrawlRequest

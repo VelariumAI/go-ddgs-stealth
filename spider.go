@@ -35,6 +35,9 @@ type SpiderConfig struct {
 	CheckpointFileJSON string
 	StreamingJSONL     string
 	MaxPages           int
+	MaxDepth           int
+	AllowHosts         []string
+	DenyHosts          []string
 	Parse              ParseFunc
 }
 
@@ -54,6 +57,9 @@ type Spider struct {
 
 	pauseMu sync.RWMutex
 	paused  bool
+
+	allowHosts map[string]struct{}
+	denyHosts  map[string]struct{}
 }
 
 func NewSpider(fetcher Fetcher, cfg SpiderConfig) (*Spider, error) {
@@ -69,14 +75,19 @@ func NewSpider(fetcher Fetcher, cfg SpiderConfig) (*Spider, error) {
 	if cfg.MaxPages <= 0 {
 		cfg.MaxPages = 200
 	}
+	if cfg.MaxDepth <= 0 {
+		cfg.MaxDepth = 4
+	}
 	if len(cfg.StartURLs) == 0 {
 		return nil, fmt.Errorf("at least one start url is required")
 	}
 	sp := &Spider{
-		fetcher:   fetcher,
-		cfg:       cfg,
-		domainHit: map[string]time.Time{},
-		seen:      map[string]struct{}{},
+		fetcher:    fetcher,
+		cfg:        cfg,
+		domainHit:  map[string]time.Time{},
+		seen:       map[string]struct{}{},
+		allowHosts: normalizeHostSet(cfg.AllowHosts),
+		denyHosts:  normalizeHostSet(cfg.DenyHosts),
 	}
 	if strings.TrimSpace(cfg.StreamingJSONL) != "" {
 		w, err := newJSONLWriter(cfg.StreamingJSONL)
@@ -97,7 +108,11 @@ func (s *Spider) Close() error {
 }
 
 func (s *Spider) Run(ctx context.Context) error {
-	queue := make(chan string, s.cfg.Concurrency*8)
+	type crawlTask struct {
+		url   string
+		depth int
+	}
+	queue := make(chan crawlTask, s.cfg.Concurrency*8)
 	out := make(chan CrawlResult, s.cfg.Concurrency*4)
 	var wg sync.WaitGroup
 
@@ -124,7 +139,7 @@ func (s *Spider) Run(ctx context.Context) error {
 				select {
 				case <-ctx.Done():
 					return
-				case u, ok := <-queue:
+				case task, ok := <-queue:
 					if !ok {
 						return
 					}
@@ -135,7 +150,11 @@ func (s *Spider) Run(ctx context.Context) error {
 						cancel()
 						return
 					}
-					res := s.fetchOne(ctx, u)
+					res := s.fetchOne(ctx, task.url)
+					if res.Meta == nil {
+						res.Meta = map[string]string{}
+					}
+					res.Meta["depth"] = fmt.Sprintf("%d", task.depth)
 					select {
 					case out <- res:
 					case <-ctx.Done():
@@ -148,8 +167,11 @@ func (s *Spider) Run(ctx context.Context) error {
 
 	seeded := 0
 	for _, u := range s.cfg.StartURLs {
+		if !s.urlAllowed(u) {
+			continue
+		}
 		if s.markSeen(u) {
-			queue <- u
+			queue <- crawlTask{url: u, depth: 0}
 			seeded++
 		}
 	}
@@ -169,13 +191,26 @@ func (s *Spider) Run(ctx context.Context) error {
 	for res := range out {
 		inFlight--
 		s.persistResult(res)
+		currentDepth := 0
+		if res.Meta != nil {
+			if d, ok := res.Meta["depth"]; ok {
+				_, _ = fmt.Sscanf(d, "%d", &currentDepth)
+			}
+		}
+		nextDepth := currentDepth + 1
 
 		for _, next := range res.Discovered {
+			if nextDepth > s.cfg.MaxDepth {
+				continue
+			}
+			if !s.urlAllowed(next) {
+				continue
+			}
 			if !s.markSeen(next) {
 				continue
 			}
 			select {
-			case queue <- next:
+			case queue <- crawlTask{url: next, depth: nextDepth}:
 				inFlight++
 			case <-ctx.Done():
 			}
@@ -186,6 +221,34 @@ func (s *Spider) Run(ctx context.Context) error {
 	}
 	close(queue)
 	return ctx.Err()
+}
+
+func normalizeHostSet(hosts []string) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, h := range hosts {
+		h = strings.ToLower(strings.TrimSpace(h))
+		if h != "" {
+			out[h] = struct{}{}
+		}
+	}
+	return out
+}
+
+func (s *Spider) urlAllowed(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	host := strings.ToLower(u.Host)
+	if len(s.allowHosts) > 0 {
+		if _, ok := s.allowHosts[host]; !ok {
+			return false
+		}
+	}
+	if _, denied := s.denyHosts[host]; denied {
+		return false
+	}
+	return true
 }
 
 func (s *Spider) fetchOne(ctx context.Context, rawURL string) CrawlResult {

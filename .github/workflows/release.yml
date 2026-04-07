@@ -20,8 +20,10 @@ jobs:
           mkdir -p dist
           GOOS=linux GOARCH=amd64 go build -o dist/goddgs-linux-amd64 ./cmd/goddgs
           GOOS=linux GOARCH=amd64 go build -o dist/goddgsd-linux-amd64 ./cmd/goddgsd
+          sha256sum dist/goddgs-linux-amd64 dist/goddgsd-linux-amd64 > dist/SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/goddgs-linux-amd64
             dist/goddgsd-linux-amd64
+            dist/SHA256SUMS.txt

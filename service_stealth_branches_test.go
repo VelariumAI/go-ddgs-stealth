@@ -20,6 +20,7 @@ func makeServiceServer(t *testing.T) *httptest.Server {
 }
 
 func TestStealthEndpointsMethodNotAllowed(t *testing.T) {
+	resetStealthGuardForTests()
 	s := makeServiceServer(t)
 	defer s.Close()
 	resp, _ := http.Get(s.URL + "/v1/stealth/fetch")
@@ -35,6 +36,7 @@ func TestStealthEndpointsMethodNotAllowed(t *testing.T) {
 }
 
 func TestStealthFetchBlockedAndBadGatewayPaths(t *testing.T) {
+	resetStealthGuardForTests()
 	blocked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte("access denied"))
@@ -66,6 +68,7 @@ func TestStealthFetchBlockedAndBadGatewayPaths(t *testing.T) {
 }
 
 func TestStealthFetchStealthModeAndCrawlErrorBranch(t *testing.T) {
+	resetStealthGuardForTests()
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	}))
@@ -96,6 +99,7 @@ func TestStealthFetchStealthModeAndCrawlErrorBranch(t *testing.T) {
 }
 
 func TestStealthCrawlTimeoutBranch(t *testing.T) {
+	resetStealthGuardForTests()
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(1500 * time.Millisecond)
 		_, _ = w.Write([]byte(`<a href="/next">n</a>`))
@@ -111,6 +115,53 @@ func TestStealthCrawlTimeoutBranch(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Fatalf("timeout status=%d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestStealthAuthAndRateLimit(t *testing.T) {
+	resetStealthGuardForTests()
+	t.Setenv("GODDGS_API_TOKEN", "secret")
+	t.Setenv("GODDGS_STEALTH_RATE_PER_MIN", "1")
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer target.Close()
+	s := makeServiceServer(t)
+	defer s.Close()
+
+	body, _ := json.Marshal(map[string]any{"url": target.URL, "mode": "http"})
+	resp, err := http.Post(s.URL+"/v1/stealth/fetch", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status=%d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, s.URL+"/v1/stealth/fetch", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer secret")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("authorized status=%d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	req, _ = http.NewRequest(http.MethodPost, s.URL+"/v1/stealth/fetch", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer secret")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("ratelimit status=%d", resp.StatusCode)
 	}
 	_ = resp.Body.Close()
 }
