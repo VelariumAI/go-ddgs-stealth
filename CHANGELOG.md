@@ -4,12 +4,12 @@
 
 ## v0.2.1 - 2026-04-07
 
-- Completed post-rename path consistency updates for `go-ddgs`.
+- Completed post-rename path consistency updates for `go-ddgs-stealth`.
 - Updated README/docs badges, links, imports, and release helper scripts to new repo/module path.
 
 ## v0.2.0 - 2026-04-07
 
-- Renamed project repository to `go-ddgs`.
+- Renamed project repository to `go-ddgs-stealth`.
 - Updated Go module path to `github.com/velariumai/go-ddgs-stealth` (breaking import path change).
 - Updated documentation, badges, scripts, and examples for the new naming.
 
