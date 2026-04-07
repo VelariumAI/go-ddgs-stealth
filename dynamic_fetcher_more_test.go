@@ -52,4 +52,20 @@ func TestDynamicFetcherActions(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected unsupported action error")
 	}
+
+	_, err = df.FetchDynamic(context.Background(), DynamicFetchRequest{
+		FetchRequest: FetchRequest{URL: srv.URL},
+		Actions:      []DynamicAction{{Type: "wait"}},
+	})
+	if err == nil {
+		t.Fatal("expected wait selector validation error")
+	}
+
+	_, err = df.FetchDynamic(context.Background(), DynamicFetchRequest{
+		FetchRequest: FetchRequest{URL: srv.URL},
+		Actions:      []DynamicAction{{Type: "eval"}},
+	})
+	if err == nil {
+		t.Fatal("expected eval script validation error")
+	}
 }

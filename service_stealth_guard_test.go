@@ -24,6 +24,10 @@ func TestStealthGuardHelpers(t *testing.T) {
 	if n := stealthRateLimitPerMin(); n != 0 {
 		t.Fatalf("rate zero=%d", n)
 	}
+	t.Setenv("GODDGS_STEALTH_RATE_PER_MIN", "-1")
+	if n := stealthRateLimitPerMin(); n != 120 {
+		t.Fatalf("rate negative default=%d", n)
+	}
 
 	t.Setenv("GODDGS_API_TOKEN", "secret")
 	r, _ := http.NewRequest(http.MethodGet, "http://x", nil)
@@ -49,6 +53,14 @@ func TestStealthGuardHelpers(t *testing.T) {
 	if ip := requesterIP(r); ip != "bad-addr" {
 		t.Fatalf("fallback ip=%s", ip)
 	}
+	r.RemoteAddr = ""
+	if ip := requesterIP(r); ip != "unknown" {
+		t.Fatalf("unknown ip=%s", ip)
+	}
+	t.Setenv("GODDGS_API_TOKEN", "")
+	if !requireAPIToken(r) {
+		t.Fatal("expected open access when token unset")
+	}
 
 	stealthGuard.mu.Lock()
 	stealthGuard.windowStart = time.Now().Add(-2 * time.Minute)
@@ -56,5 +68,9 @@ func TestStealthGuardHelpers(t *testing.T) {
 	t.Setenv("GODDGS_STEALTH_RATE_PER_MIN", "1")
 	if !stealthGuard.allow("window-reset") {
 		t.Fatal("expected allow after window reset")
+	}
+	t.Setenv("GODDGS_STEALTH_RATE_PER_MIN", "0")
+	if !stealthGuard.allow("no-limit") || !stealthGuard.allow("no-limit") {
+		t.Fatal("expected always-allow when limit is disabled")
 	}
 }
