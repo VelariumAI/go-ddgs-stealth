@@ -29,7 +29,8 @@ func chromeProfile(ua string) browserProfile {
 		{"User-Agent", ua},
 		{"Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"},
 		{"Accept-Language", "en-US,en;q=0.9"},
-		{"Accept-Encoding", "gzip, deflate, br"},
+		// zstd added in Chrome 123; all UAs in the pool are ≥ 124.
+		{"Accept-Encoding", "gzip, deflate, br, zstd"},
 		{"Connection", "keep-alive"},
 	}
 	if secCHUA := SecCHUA(ua); secCHUA != "" {
@@ -96,11 +97,13 @@ func secFetchNavigation(site string) map[string]string {
 }
 
 // secFetchScript returns Sec-Fetch-* headers for a <script src="..."> resource load.
+// links.duckduckgo.com shares eTLD+1 (duckduckgo.com) with the main page, so the
+// site value is "same-site", not "cross-site".
 func secFetchScript() map[string]string {
 	return map[string]string{
 		"Sec-Fetch-Dest": "script",
 		"Sec-Fetch-Mode": "no-cors",
-		"Sec-Fetch-Site": "cross-site",
+		"Sec-Fetch-Site": "same-site",
 	}
 }
 

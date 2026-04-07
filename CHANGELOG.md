@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.1.3 - 2026-04-07
+
+- Added transport-level decompression for `gzip`, `br`, and `zstd`.
+- Fixed gzip decompression close-path bug and hardened `Content-Encoding` parsing.
+- Updated Chrome header profile (`Accept-Encoding` with `zstd`, `Priority` hints).
+- Corrected `Sec-Fetch-Site` for script requests to `same-site`.
+- Added decompression regression tests (including noop/uncompressed paths).
+
 ## v0.1.2 - 2026-04-07
 
 - Re-added Go Reference badge in README.

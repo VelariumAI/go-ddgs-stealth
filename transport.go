@@ -1,7 +1,9 @@
 package goddgs
 
 import (
+	"compress/gzip"
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -10,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
 	utls "github.com/refraction-networking/utls"
 )
 
@@ -58,7 +62,11 @@ func newAntiBotTransport(proxyPool *ProxyPool) *antiBotTransport {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		DisableCompression:    false,
+		// We manage Accept-Encoding and decompression ourselves so that we can
+		// advertise brotli and zstd, which the standard transport cannot decode.
+		// DisableCompression=true prevents the transport from silently injecting
+		// "Accept-Encoding: gzip" and auto-decompressing only that encoding.
+		DisableCompression: true,
 	}
 	return t
 }
@@ -154,7 +162,32 @@ func (t *antiBotTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	secFetch := inferSecFetch(r)
 	applyProfile(r, profile, secFetch)
 
-	return t.baseTransport.RoundTrip(r)
+	// 5. Priority header (RFC 9218) — Chrome sends this since version 117.
+	//    Value depends on the fetch destination set in step 4.
+	if (profile.Family == "chrome" || profile.Family == "edge") && r.Header.Get("Priority") == "" {
+		switch r.Header.Get("Sec-Fetch-Dest") {
+		case "document":
+			r.Header.Set("Priority", "u=0, i")
+		case "script":
+			r.Header.Set("Priority", "u=2")
+		default:
+			r.Header.Set("Priority", "u=1")
+		}
+	}
+
+	resp, err := t.baseTransport.RoundTrip(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// 6. Decompress response body.
+	//    The standard transport only auto-decompresses gzip when it was the one
+	//    that injected "Accept-Encoding: gzip". Because we set Accept-Encoding
+	//    explicitly in the profile, the transport never auto-decompresses —
+	//    leaving brotli/zstd/gzip responses as compressed bytes. We handle all
+	//    three encodings here so callers always see plain text.
+	decompressResponse(resp)
+	return resp, nil
 }
 
 // inferSecFetch determines the correct Sec-Fetch-* headers by examining the
@@ -179,3 +212,77 @@ func inferSecFetch(req *http.Request) map[string]string {
 		return secFetchNavigation("none")
 	}
 }
+
+// ── response decompression ────────────────────────────────────────────────────
+
+// decompressResponse replaces resp.Body with a decompressing reader when the
+// server sent a compressed body. It handles gzip, brotli, and zstd.
+//
+// The standard http.Transport only auto-decompresses gzip when it injected
+// the Accept-Encoding header itself. Since antiBotTransport sets Accept-Encoding
+// explicitly (to include br and zstd), the transport skips auto-decompression
+// entirely. We must therefore handle all encodings ourselves.
+func decompressResponse(resp *http.Response) {
+	if resp == nil || resp.Body == nil || resp.Uncompressed {
+		return
+	}
+	enc := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Encoding")))
+	// Some servers send comma-delimited encoding lists. We only support the
+	// outermost known value and leave unknown chains untouched.
+	if i := strings.IndexByte(enc, ','); i >= 0 {
+		enc = strings.TrimSpace(enc[:i])
+	}
+	switch enc {
+	case "gzip":
+		orig := resp.Body
+		gr, err := gzip.NewReader(orig)
+		if err != nil {
+			return // leave body as-is; caller will see a parse error
+		}
+		resp.Body = &readCloser{Reader: gr, close: func() error {
+			_ = gr.Close()
+			return orig.Close()
+		}}
+		clearContentHeaders(resp)
+
+	case "br":
+		orig := resp.Body
+		resp.Body = &readCloser{
+			Reader: brotli.NewReader(orig),
+			close:  orig.Close,
+		}
+		clearContentHeaders(resp)
+
+	case "zstd":
+		dec, err := zstd.NewReader(resp.Body)
+		if err != nil {
+			return
+		}
+		orig := resp.Body
+		resp.Body = &readCloser{
+			Reader: dec,
+			close: func() error {
+				dec.Close()
+				return orig.Close()
+			},
+		}
+		clearContentHeaders(resp)
+	}
+}
+
+// clearContentHeaders removes Content-Encoding and Content-Length after
+// decompression (the decompressed size differs from the on-wire size).
+func clearContentHeaders(resp *http.Response) {
+	resp.Header.Del("Content-Encoding")
+	resp.Header.Del("Content-Length")
+	resp.ContentLength = -1
+	resp.Uncompressed = true
+}
+
+// readCloser wraps an io.Reader with a custom close function.
+type readCloser struct {
+	io.Reader
+	close func() error
+}
+
+func (r *readCloser) Close() error { return r.close() }
