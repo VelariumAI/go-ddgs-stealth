@@ -21,15 +21,11 @@ func TestRunStartStopPath(t *testing.T) {
 	stop := make(chan os.Signal, 1)
 	stop <- os.Interrupt
 
-	oldServe := serveFn
-	serveFn = func(_ *http.Server) error { return http.ErrServerClosed }
-	defer func() { serveFn = oldServe }()
-
 	t.Setenv("GODDGS_DDG_BASE", "http://127.0.0.1:1")
 	t.Setenv("GODDGS_LINKS_BASE", "http://127.0.0.1:1")
 	t.Setenv("GODDGS_HTML_BASE", "http://127.0.0.1:1")
 	t.Setenv("GODDGS_ADDR", ":0")
-	if err := run(stop); err != nil {
+	if err := runWithServe(stop, func(_ *http.Server) error { return http.ErrServerClosed }); err != nil {
 		t.Fatalf("run error: %v", err)
 	}
 }

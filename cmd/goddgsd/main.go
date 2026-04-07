@@ -15,8 +15,6 @@ import (
 	"github.com/velariumai/go-ddgs"
 )
 
-var serveFn = func(s *http.Server) error { return s.ListenAndServe() }
-
 func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
@@ -26,6 +24,13 @@ func main() {
 }
 
 func run(stop <-chan os.Signal) error {
+	return runWithServe(stop, func(s *http.Server) error { return s.ListenAndServe() })
+}
+
+func runWithServe(stop <-chan os.Signal, serve func(*http.Server) error) error {
+	if serve == nil {
+		serve = func(s *http.Server) error { return s.ListenAndServe() }
+	}
 	cfg := goddgs.LoadConfigFromEnv()
 	metrics := goddgs.NewPrometheusCollector(nil)
 	engine, err := goddgs.NewDefaultEngineFromConfig(cfg, metrics.Hook)
@@ -53,7 +58,7 @@ func run(stop <-chan os.Signal) error {
 	}
 	go func() {
 		log.Printf("goddgsd listening on %s", addr)
-		if err := serveFn(srv); err != nil && err != http.ErrServerClosed {
+		if err := serve(srv); err != nil && err != http.ErrServerClosed {
 			log.Printf("server error: %v", err)
 		}
 	}()
