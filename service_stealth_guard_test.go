@@ -9,7 +9,9 @@ import (
 func TestStealthGuardHelpers(t *testing.T) {
 	resetStealthGuardForTests()
 	t.Setenv("GODDGS_STEALTH_RATE_PER_MIN", "2")
-	if !stealthGuard.allow("1.2.3.4") || !stealthGuard.allow("1.2.3.4") {
+	firstAllowed := stealthGuard.allow("1.2.3.4")
+	secondAllowed := stealthGuard.allow("1.2.3.4")
+	if !firstAllowed || !secondAllowed {
 		t.Fatal("expected first two allows")
 	}
 	if stealthGuard.allow("1.2.3.4") {
@@ -70,7 +72,9 @@ func TestStealthGuardHelpers(t *testing.T) {
 		t.Fatal("expected allow after window reset")
 	}
 	t.Setenv("GODDGS_STEALTH_RATE_PER_MIN", "0")
-	if !stealthGuard.allow("no-limit") || !stealthGuard.allow("no-limit") {
+	noLimitFirst := stealthGuard.allow("no-limit")
+	noLimitSecond := stealthGuard.allow("no-limit")
+	if !noLimitFirst || !noLimitSecond {
 		t.Fatal("expected always-allow when limit is disabled")
 	}
 }

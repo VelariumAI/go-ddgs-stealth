@@ -2,7 +2,6 @@ package goddgs
 
 import (
 	"context"
-	"fmt"
 	"testing"
 )
 
@@ -33,4 +32,4 @@ func TestSpiderRunWithMockFetcher(t *testing.T) {
 	}
 }
 
-func (m mockFetcher) String() string { return fmt.Sprintf("%s", string(m)) }
+func (m mockFetcher) String() string { return string(m) }
