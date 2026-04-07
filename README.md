@@ -1,82 +1,50 @@
-# go-ddgs
-[![CI](https://github.com/velariumai/go-ddgs/actions/workflows/ci.yml/badge.svg)](https://github.com/velariumai/go-ddgs/actions/workflows/ci.yml)
-[![Release](https://github.com/velariumai/go-ddgs/actions/workflows/release.yml/badge.svg)](https://github.com/velariumai/go-ddgs/actions/workflows/release.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/velariumai/go-ddgs.svg)](https://pkg.go.dev/github.com/velariumai/go-ddgs)
-[![Go Report Card](https://goreportcard.com/badge/github.com/velariumai/go-ddgs)](https://goreportcard.com/report/github.com/velariumai/go-ddgs)
+# go-ddgs-stealth
+[![CI](https://github.com/velariumai/go-ddgs-stealth/actions/workflows/ci.yml/badge.svg)](https://github.com/velariumai/go-ddgs-stealth/actions/workflows/ci.yml)
+[![Release](https://github.com/velariumai/go-ddgs-stealth/actions/workflows/release.yml/badge.svg)](https://github.com/velariumai/go-ddgs-stealth/actions/workflows/release.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/velariumai/go-ddgs-stealth.svg)](https://pkg.go.dev/github.com/velariumai/go-ddgs-stealth)
 
-`go-ddgs` is a production-oriented Go web search toolkit with:
+`go-ddgs-stealth` is a Go-native search + stealth fetching toolkit.
 
-- DDG-first search without requiring API keys.
-- Typed provider failover engine (`ddg`, `brave`, `tavily`, `serpapi`).
-- Bot/challenge signal detection and diagnostics.
-- Optional challenge-solving integrations (FlareSolverr, 2captcha, CapSolver).
-- CLI and HTTP service runtimes.
-- Prometheus-compatible observability hooks.
+## What It Includes
+
+- DDG-first search engine with provider failover (`ddg`, `brave`, `tavily`, `serpapi`).
+- Unified fetcher interfaces:
+  - `HTTPFetcher` (anti-bot transport primitives)
+  - `StealthyFetcher` (Rod browser-backed)
+  - `DynamicFetcher` (interactive flow wrapper)
+- Adaptive parser with selector self-healing and persistence.
+- Spider/crawler with concurrency, per-domain pacing, JSONL streaming, and checkpoint resume.
+- Session pooling helpers for multi-fetcher orchestration.
+- Prometheus metrics and OpenTelemetry span hooks.
+- CLI + HTTP service runtime.
 
 ## Install
 
 ```bash
-go get github.com/velariumai/go-ddgs
+go get github.com/velariumai/go-ddgs-stealth
 ```
-
-## Compatibility
-
-- Go `1.24+`
-
-## What This Project Does
-
-`go-ddgs` is designed for resilient search in real-world environments where providers can fail, throttle, or challenge traffic.
-
-It includes:
-
-- Provider-chain orchestration with typed errors and diagnostics.
-- Retry/backoff logic, VQD token refresh, and adaptive controls.
-- Circuit-breaker fail-fast behavior for burned sessions.
-- Optional solver interfaces for challenge workflows.
-
-Important reality:
-
-- Challenge-solving behavior is environment-dependent and not guaranteed to succeed against all anti-bot systems.
-- Use official providers for reliability-critical production traffic.
 
 ## Quick Start
 
 ```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"log"
-
-	goddgs "github.com/velariumai/go-ddgs"
-)
-
-func main() {
-	cfg := goddgs.LoadConfigFromEnv()
-	engine, err := goddgs.NewDefaultEngineFromConfig(cfg)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	resp, err := engine.Search(context.Background(), goddgs.SearchRequest{
-		Query:      "golang structured logging",
-		MaxResults: 5,
-		Region:     "us-en",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("provider=%s fallback=%v results=%d\n", resp.Provider, resp.FallbackUsed, len(resp.Results))
+cfg := goddgs.LoadConfigFromEnv()
+engine, err := goddgs.NewDefaultEngineFromConfig(cfg)
+if err != nil {
+    panic(err)
 }
+resp, err := engine.Search(context.Background(), goddgs.SearchRequest{Query: "golang", MaxResults: 5})
+if err != nil {
+    panic(err)
+}
+fmt.Println(resp.Provider, len(resp.Results))
 ```
 
 ## CLI
 
 ```bash
-go run ./cmd/goddgs providers
-go run ./cmd/goddgs search --q "golang" --max 5 --region us-en
+go run ./cmd/goddgs search --q "golang" --json
+go run ./cmd/goddgs stealth-fetch --url https://example.com --mode http
+go run ./cmd/goddgs stealth-crawl --url https://example.com --max 20 --out /tmp/crawl.jsonl
 go run ./cmd/goddgs doctor
 ```
 
@@ -92,59 +60,23 @@ Endpoints:
 - `GET /readyz`
 - `GET /metrics`
 - `POST /v1/search`
-
-Example:
-
-```bash
-curl -sS -X POST http://127.0.0.1:8080/v1/search \
-  -H 'content-type: application/json' \
-  -d '{"query":"golang","max_results":3,"region":"us-en"}'
-```
-
-## Configuration
-
-Core environment variables:
-
-- `GODDGS_PROVIDER_ORDER` (default: `ddg,brave,tavily,serpapi`)
-- `GODDGS_TIMEOUT` (default: `20s`)
-- `GODDGS_MAX_RETRIES` (default: `3`)
-- `GODDGS_DISABLE_HTML_FALLBACK` (`true|false`)
-- `GODDGS_DDG_BASE` (optional override for DDG base URL)
-- `GODDGS_LINKS_BASE` (optional override for links endpoint)
-- `GODDGS_HTML_BASE` (optional override for html endpoint)
-- `GODDGS_BRAVE_API_KEY`
-- `GODDGS_TAVILY_API_KEY`
-- `GODDGS_SERPAPI_API_KEY`
-- `GODDGS_ADDR` (HTTP service bind, default `:8080`)
-
-For full runtime and anti-bot configuration guidance, see docs below.
+- `POST /v1/stealth/fetch`
+- `POST /v1/stealth/crawl`
 
 ## Documentation
 
-- [Documentation Index](docs/README.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [API Reference](docs/API_REFERENCE.md)
-- [HTTP API](docs/HTTP_API.md)
-- [CLI Reference](docs/CLI.md)
-- [Configuration](docs/CONFIGURATION.md)
-- [Anti-Bot and Solver Model](docs/ANTI_BOT_AND_SOLVERS.md)
-- [Operations Runbook](docs/OPERATIONS.md)
-- [Release Checklist](docs/RELEASE_CHECKLIST.md)
+- [docs/README.md](docs/README.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/API_REFERENCE.md](docs/API_REFERENCE.md)
+- [docs/HTTP_API.md](docs/HTTP_API.md)
+- [docs/CLI.md](docs/CLI.md)
+- [ROADMAP.md](ROADMAP.md)
 
-## Developer Workflow
+## Development
 
 ```bash
 make fmt
 make vet
-make test
-make coverage
-make build
+go test ./...
+./scripts/check_coverage.sh 85.0
 ```
-
-Coverage policy:
-
-- Total statement coverage is enforced at `>=85.0%` via `scripts/check_coverage.sh` and CI.
-
-## License
-
-MIT

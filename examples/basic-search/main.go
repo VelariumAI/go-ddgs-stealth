@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/velariumai/go-ddgs"
+	"github.com/velariumai/go-ddgs-stealth"
 )
 
 func main() {

@@ -1,22 +1,19 @@
 # HTTP API
 
-`goddgsd` exposes a minimal API surface.
+`goddgsd` exposes a production HTTP surface.
 
 ## Endpoints
 
 - `GET /healthz`
-  - `200 OK` with body `ok`
-
 - `GET /readyz`
-  - `200 OK` with body `ready` when engine exists and has enabled providers
-  - `503 Service Unavailable` with body `no providers` otherwise
-
 - `GET /metrics`
-  - Prometheus handler output when configured
-
 - `POST /v1/search`
+- `POST /v1/stealth/fetch`
+- `POST /v1/stealth/crawl`
 
-## /v1/search Request
+## /v1/search
+
+Request:
 
 ```json
 {
@@ -26,17 +23,50 @@
 }
 ```
 
-Fields:
+## /v1/stealth/fetch
 
-- `query` (required)
-- `max_results` (optional)
-- `region` (optional)
+Request:
 
-## /v1/search Response
+```json
+{
+  "url": "https://example.com",
+  "method": "GET",
+  "mode": "http",
+  "human_like": true,
+  "stealth_level": "strong"
+}
+```
 
-Returns `SearchResponse` JSON on success.
+Notes:
 
-`Content-Type: application/json`
+- `mode`: `http` or `stealth`.
+- `stealth_level`: `basic|strong|aggressive`.
+
+Response is `FetchResponse` JSON.
+
+## /v1/stealth/crawl
+
+Request:
+
+```json
+{
+  "start_url": "https://example.com",
+  "max_pages": 50,
+  "concurrency": 4,
+  "checkpoint_file": "/tmp/crawl.checkpoint.json",
+  "streaming_jsonl": "/tmp/crawl.jsonl"
+}
+```
+
+Response:
+
+```json
+{
+  "started_at": "...",
+  "ended_at": "...",
+  "status": "ok"
+}
+```
 
 ## Error Payload
 
@@ -46,14 +76,3 @@ Returns `SearchResponse` JSON on success.
   "kind": "error_kind"
 }
 ```
-
-## Status Mapping (Current Behavior)
-
-- `405` for non-POST `/v1/search` requests.
-- `400` for invalid JSON or empty query.
-- `502` if engine is unavailable.
-- `429` for blocked/rate-limited mapped errors.
-- `404` for no-results mapped errors.
-- `502` for other provider/internal failures.
-
-Note: when all providers are exhausted, engine returns a normalized no-results error, which maps to `404` in service.

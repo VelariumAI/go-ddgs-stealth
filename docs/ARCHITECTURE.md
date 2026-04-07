@@ -1,55 +1,35 @@
 # Architecture
 
-## High-Level Components
+## Core Layers
 
-- `Client`: DDG-facing HTTP client with retry, fallback, block detection, and optional anti-bot state.
-- `Engine`: provider-chain orchestrator that normalizes failures and returns typed diagnostics.
-- `Provider` adapters: `ddg`, `brave`, `tavily`, `serpapi` implementations behind a common interface.
-- `Service`: HTTP API (`/v1/search`) and health/readiness/metrics endpoints.
-- `CLI`: operational and local-debug entrypoint (`search`, `providers`, `doctor`).
+- `Engine`: provider-chain orchestration for web search.
+- `Client`: DDG-native search transport with anti-bot controls.
+- `Fetcher` family:
+  - `HTTPFetcher` reusing anti-bot transport/session/rate/circuit/solver stack.
+  - `StealthyFetcher` (Rod browser runtime).
+  - `DynamicFetcher` for interactive browser flows.
+- `AdaptiveParser`: CSS selector self-healing with fingerprint persistence.
+- `Spider`: concurrent crawler with checkpoint + JSONL output.
+- `Service`: HTTP API for search and stealth operations.
 
-## Request Flow
+## Anti-Bot Model
 
-1. Caller submits `SearchRequest` to `Engine.Search`.
-2. Engine iterates enabled providers in configured order.
-3. First successful provider returns `SearchResponse`.
-4. Failures are classified (`SearchError`) and captured in diagnostics.
-5. If all providers fail, engine returns a typed exhaustion error.
+Shared anti-bot primitives are defined in `AntiBotConfig` and inherited by fetchers:
 
-## DDG Client Runtime
-
-`Client.Search` attempts:
-
-1. `d.js` path (primary).
-2. optional `/html/` fallback (unless disabled).
-
-Resilience controls include:
-
-- VQD cache and invalidation on block.
-- Retry with backoff and jitter.
-- Optional adaptive rate limiter.
-- Optional circuit breaker (`ErrCircuitOpen`).
-- Optional session invalidation and warmup.
-
-## Anti-Bot and Solvers
-
-The anti-bot subsystem supports:
-
-- Browser-like header profiles and user-agent rotation.
-- Chrome-like TLS behavior via `utls` transport path.
-- Optional proxy-pool rotation.
-- Block-signal detection and challenge solver chain.
-
-See [ANTI_BOT_AND_SOLVERS.md](ANTI_BOT_AND_SOLVERS.md) for details and limits.
+- UA rotation
+- ChromeTLS profile
+- session warmup/invalidation
+- adaptive delay + jitter
+- circuit breaker
+- challenge solver chain
+- proxy pool
 
 ## Observability
 
-- Internal event hooks (`EventHook`) for search/provider lifecycle and block/fallback events.
-- Prometheus collector with provider, block, fallback, and circuit metrics.
+- Prometheus metrics for search and stealth runtime.
+- OpenTelemetry span hooks (`http.stealth.fetch`, `http.stealth.crawl`) for service tracing.
 
-## Key Design Decisions
+## Runtime Entrypoints
 
-- Preserve a typed error model for stable automation and API clients.
-- Prefer failover over brittle single-provider dependency.
-- Keep optional anti-bot behavior pluggable and explicit.
-- Keep HTTP service thin over engine interfaces.
+- CLI: `cmd/goddgs`
+- Service daemon: `cmd/goddgsd`

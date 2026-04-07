@@ -11,8 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/velariumai/go-ddgs"
+	"github.com/velariumai/go-ddgs-stealth"
 )
 
 func main() {
@@ -32,7 +33,8 @@ func runWithServe(stop <-chan os.Signal, serve func(*http.Server) error) error {
 		serve = func(s *http.Server) error { return s.ListenAndServe() }
 	}
 	cfg := goddgs.LoadConfigFromEnv()
-	metrics := goddgs.NewPrometheusCollector(nil)
+	reg := prometheus.NewRegistry()
+	metrics := goddgs.NewPrometheusCollector(reg)
 	engine, err := goddgs.NewDefaultEngineFromConfig(cfg, metrics.Hook)
 	if err != nil {
 		return fmt.Errorf("engine init: %w", err)
@@ -48,7 +50,7 @@ func runWithServe(stop <-chan os.Signal, serve func(*http.Server) error) error {
 		metrics.SetProviderEnabled(p, en)
 	}
 
-	mux := goddgs.NewHTTPHandler(engine, cfg, promhttp.Handler())
+	mux := goddgs.NewHTTPHandler(engine, cfg, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 
 	addr := getenv("GODDGS_ADDR", ":8080")
 	srv := &http.Server{

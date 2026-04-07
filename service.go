@@ -84,6 +84,7 @@ func NewHTTPHandler(engine *Engine, cfg Config, metricsHandler http.Handler) htt
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
+	registerStealthRoutes(mux)
 	return mux
 }
 
