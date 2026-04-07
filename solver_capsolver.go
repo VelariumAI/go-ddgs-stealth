@@ -112,7 +112,7 @@ func (c *CapSolverSolver) buildTask(pageURL, siteKey, ctype string) (map[string]
 			return nil, fmt.Errorf("no hcaptcha site key found")
 		}
 		return map[string]any{
-			"type":    "HCaptchaTaskProxyless",
+			"type":       "HCaptchaTaskProxyless",
 			"websiteURL": pageURL,
 			"websiteKey": siteKey,
 		}, nil

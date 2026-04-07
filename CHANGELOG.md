@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v0.1.2 - 2026-04-07
+
+- Re-added Go Reference badge in README.
+- Applied `gofmt -s` formatting fixes to solver sources.
+
 ## v0.1.1 - 2026-04-07
 
 - Aligned release/tag state with reconciled remote `main`.

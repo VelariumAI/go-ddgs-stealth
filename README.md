@@ -1,6 +1,7 @@
 # goddgs
 [![CI](https://github.com/velariumai/goddgs/actions/workflows/ci.yml/badge.svg)](https://github.com/velariumai/goddgs/actions/workflows/ci.yml)
 [![Release](https://github.com/velariumai/goddgs/actions/workflows/release.yml/badge.svg)](https://github.com/velariumai/goddgs/actions/workflows/release.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/velariumai/goddgs.svg)](https://pkg.go.dev/github.com/velariumai/goddgs)
 [![Go Report Card](https://goreportcard.com/badge/github.com/velariumai/goddgs)](https://goreportcard.com/report/github.com/velariumai/goddgs)
 
 `goddgs` is a production-oriented Go web search toolkit with:

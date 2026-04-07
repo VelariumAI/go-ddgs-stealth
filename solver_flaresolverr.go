@@ -76,8 +76,8 @@ func (f *FlareSolverrSolver) Solve(ctx context.Context, pageURL string, _ BlockI
 
 	// ── parse response ────────────────────────────────────────────────────────
 	var result struct {
-		Status  string `json:"status"`
-		Message string `json:"message"`
+		Status   string `json:"status"`
+		Message  string `json:"message"`
 		Solution struct {
 			Cookies []struct {
 				Name     string  `json:"name"`
